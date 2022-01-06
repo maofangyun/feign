@@ -261,31 +261,38 @@ public abstract class Feign {
     }
 
     public <T> T target(Class<T> apiType, String url) {
+      // 创建了一个JDK的动态代理类
       return target(new HardCodedTarget<T>(apiType, url));
     }
 
     public <T> T target(Target<T> target) {
+      // 创建了一个JDK的动态代理类
       return build().newInstance(target);
     }
 
     public Feign build() {
       Client client = Capability.enrich(this.client, capabilities);
+      // 重试器A
       Retryer retryer = Capability.enrich(this.retryer, capabilities);
       List<RequestInterceptor> requestInterceptors = this.requestInterceptors.stream()
           .map(ri -> Capability.enrich(ri, capabilities))
           .collect(Collectors.toList());
       Logger logger = Capability.enrich(this.logger, capabilities);
+      // 接口协议组件(包含了全部的类上注解,方法上注解,参数上注解处理器),作用是提取Class对象得到各种元信息
       Contract contract = Capability.enrich(this.contract, capabilities);
+      // 配置类(包含连接超时[默认10s]和读取超时[默认60s])
       Options options = Capability.enrich(this.options, capabilities);
+      // 编码器
       Encoder encoder = Capability.enrich(this.encoder, capabilities);
+      // 解码器
       Decoder decoder = Capability.enrich(this.decoder, capabilities);
-      InvocationHandlerFactory invocationHandlerFactory =
-          Capability.enrich(this.invocationHandlerFactory, capabilities);
+      InvocationHandlerFactory invocationHandlerFactory = Capability.enrich(this.invocationHandlerFactory, capabilities);
       QueryMapEncoder queryMapEncoder = Capability.enrich(this.queryMapEncoder, capabilities);
 
       SynchronousMethodHandler.Factory synchronousMethodHandlerFactory =
           new SynchronousMethodHandler.Factory(client, retryer, requestInterceptors, logger,
               logLevel, decode404, closeAfterDecode, propagationPolicy, forceDecoding);
+      // 解析Feign客户端的各种方法,并绑定对应的处理器
       ParseHandlersByName handlersByName =
           new ParseHandlersByName(contract, options, encoder, decoder, queryMapEncoder,
               errorDecoder, synchronousMethodHandlerFactory);

@@ -31,12 +31,17 @@ import java.util.stream.StreamSupport;
 
 /**
  * Template for a Query String parameter.
+ * 用于处理@QueryMap的模版
  */
 public final class QueryTemplate {
 
   private static final String UNDEF = "undef";
+  // 因为一个key可以对应多值,所以用List肯定没错
   private List<Template> values;
+  // 这里name没有用字符串而是使用了模版类型，是因为name也可以是个模版{},大部分情况下它可以是字符串即可
   private final Template name;
+  // 当一key多值时候用分隔符,支持：, \t | 等等;
+  // 默认它是CollectionFormat.EXPLODED,也就是会以foo=bar&foo=baz这种形式拼接起来
   private final CollectionFormat collectionFormat;
   private boolean pure = false;
 
@@ -49,6 +54,7 @@ public final class QueryTemplate {
    * @return a QueryTemplate.
    */
   public static QueryTemplate create(String name, Iterable<String> values, Charset charset) {
+    // 请注意:默认这里使用的是CollectionFormat.EXPLODED
     return create(name, values, charset, CollectionFormat.EXPLODED, true);
   }
 
@@ -181,6 +187,7 @@ public final class QueryTemplate {
    * @return the expanded template.
    */
   public String expand(Map<String, ?> variables) {
+    // 实际上是对name进行expand
     String name = this.name.expand(variables);
 
     if (this.pure) {

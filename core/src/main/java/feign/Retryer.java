@@ -28,14 +28,22 @@ public interface Retryer extends Cloneable {
 
   Retryer clone();
 
+  /**
+   * Feign默认使用的是Default这个实例,所以Feign是有重试机制的,并且是100ms重试一次,默认重试5次.
+   * */
   class Default implements Retryer {
+    // 重试参数
+    private final int maxAttempts;  // 最大重试次数
+    private final long period;      // 重试周期,隔多久重试一次
+    private final long maxPeriod;   // 最大重试时间
+    // 内部统计指标计数
+    int attempt;  //计数:重试了几次
+    long sleptForMillis;  // 休息时间
 
-    private final int maxAttempts;
-    private final long period;
-    private final long maxPeriod;
-    int attempt;
-    long sleptForMillis;
-
+    // 空构造,默认重试参数
+    // period:默认100ms重试一次
+    // maxPeriod:最大重试1秒钟
+    // maxAttempts:最多重试5次
     public Default() {
       this(100, SECONDS.toMillis(1), 5);
     }
@@ -52,7 +60,13 @@ public interface Retryer extends Cloneable {
       return System.currentTimeMillis();
     }
 
+    /**
+     * 如果允许重试,则return返回(可能在睡眠后),
+     * 否则会把这个异常继续传播
+     * */
     public void continueOrPropagate(RetryableException e) {
+      // 1. 若超过了最大重试次数,异常继续向上抛出
+      // 2. 设置不重试,异常继续向上抛出
       if (attempt++ >= maxAttempts) {
         throw e;
       }
@@ -98,6 +112,8 @@ public interface Retryer extends Cloneable {
 
   /**
    * Implementation that never retries request. It propagates the RetryableException.
+   * 永不重试实例,
+   * 生产环境下:建议使用永不重试,否则请做好幂等
    */
   Retryer NEVER_RETRY = new Retryer() {
 

@@ -41,7 +41,7 @@ public class Template {
 
   /**
    * Create a new Template.
-   *
+   * 唯一构造器，访问权限是default
    * @param value of the template.
    * @param allowUnresolved if unresolved expressions should remain.
    * @param encode all values.
@@ -81,10 +81,11 @@ public class Template {
   }
 
   /**
-   * Expand the template.
-   *
+   * 用Map入参中的参数,填充template中占位符
    * @param variables containing the values for expansion.
    * @return a fully qualified URI with the variables expanded.
+   * 填充参数 表达式可以是个feign.template.Expression对象
+   * 一个{}就是一个Expression对象，根据name进行匹配
    */
   public String expand(Map<String, ?> variables) {
     if (variables == null) {
@@ -96,6 +97,7 @@ public class Template {
     for (TemplateChunk chunk : this.templateChunks) {
       String expanded;
       if (chunk instanceof Expression) {
+        // 解析表达式,例如{foo},通过键foo匹配得到值bar,并转义bar中的特殊字符,得到最终可以拼接的入参
         expanded = this.resolveExpression((Expression) chunk, variables);
       } else {
         /* chunk is a literal value */
@@ -109,6 +111,7 @@ public class Template {
       if (resolved == null) {
         resolved = new StringBuilder();
       }
+      // 拼接url和入参信息
       resolved.append(expanded);
     }
 
@@ -120,14 +123,11 @@ public class Template {
     return resolved.toString();
   }
 
-  protected String resolveExpression(
-                                     Expression expression,
-                                     Map<String, ?> variables) {
+  protected String resolveExpression(Expression expression, Map<String, ?> variables) {
     String resolved = null;
     Object value = variables.get(expression.getName());
     if (value != null) {
-      String expanded = expression.expand(
-          value, this.encode.isEncodingRequired());
+      String expanded = expression.expand(value, this.encode.isEncodingRequired());
       if (expanded != null) {
         if (!this.encodeSlash) {
           logger.fine("Explicit slash decoding specified, decoding all slashes in uri");
@@ -156,7 +156,7 @@ public class Template {
 
   /**
    * Variable names contained in the template.
-   *
+   * 拿到当前template下所有的变量的名称
    * @return a List of Variable Names.
    */
   public List<String> getVariables() {

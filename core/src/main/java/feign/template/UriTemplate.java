@@ -16,14 +16,7 @@ package feign.template;
 import java.nio.charset.Charset;
 
 /**
- * URI Template, as defined by <a href="https://tools.ietf.org/html/rfc6570">RFC 6570</a>,
- * supporting <a href="https://tools.ietf.org/html/rfc6570#section-3.2.2">Level 1</a> expressions,
- * with the following differences:
- *
- * <ol>
- * <li>unresolved variables are preserved as literals</li>
- * <li>all literals are pct-encoded</li>
- * </ol>
+ * 它是用于处理URI的模版，用于处理@RequestLine的模版
  */
 public class UriTemplate extends Template {
 

@@ -55,6 +55,7 @@
     <module>apt-test-generator</module>
     <module>benchmark</module>
     <module>annotation-error-decoder</module>
+      <module>example-mfy</module>
   </modules>
 
   <properties>

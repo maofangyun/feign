@@ -48,17 +48,15 @@ import javax.net.ssl.SSLSocketFactory;
 public interface Client {
 
   /**
-   * Executes a request against its {@link Request#url() url} and returns a response.
-   *
-   * @param request safe to replay.
-   * @param options options to apply to this request.
-   * @return connected response, {@link Response.Body} is absent or unread.
-   * @throws IOException on a network error connecting to {@link Request#url()}.
+   * Options是一些选项参数,比如:
+   * connectTimeoutMillis链接超时时间,默认是:10s
+   * readTimeoutMillis链接超时时间,默认是:60s
    */
   Response execute(Request request, Options options) throws IOException;
 
   class Default implements Client {
 
+    // 这些类都是java.net包下的
     private final SSLSocketFactory sslContextFactory;
     private final HostnameVerifier hostnameVerifier;
 
@@ -99,9 +97,16 @@ public interface Client {
       this.disableRequestBuffering = disableRequestBuffering;
     }
 
+    /**
+     * 发送Request请求 -> 最终通过HttpURLConnection完成的最终发送
+     * 这是Feign默认的发送请求的方式,底层使用JDK原生的HttpURLConnection,
+     * 对于JDK源生的这个Client,请务必注意它自动把GET给你转为POST的场景,避免踩坑
+     * */
     @Override
     public Response execute(Request request, Options options) throws IOException {
+      // 通过feign.Request构建出一个HttpURLConnection
       HttpURLConnection connection = convertAndSend(request, options);
+      // 得到Response,交给后面去解析
       return convertResponse(connection, request);
     }
 

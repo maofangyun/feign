@@ -163,6 +163,8 @@ public final class RequestTemplate implements Serializable {
    *
    * @param variables containing the variable values to use when resolving expressions.
    * @return a new Request Template with all of the variables resolved.
+   * 用于填充四大模版Template：UriTemplate、QueryTemplate、HeaderTemplate、BodyTemplate
+   * 使用提供的变量值替换解析所有表达式
    */
   public RequestTemplate resolve(Map<String, ?> variables) {
 
@@ -175,7 +177,7 @@ public final class RequestTemplate implements Serializable {
       /* create a new uri template using the default root */
       this.uriTemplate = UriTemplate.create("", !this.decodeSlash, this.charset);
     }
-
+    // 解析uriTemplate模板并填充url中的{}
     String expanded = this.uriTemplate.expand(variables);
     if (expanded != null) {
       uri.append(expanded);
@@ -184,6 +186,7 @@ public final class RequestTemplate implements Serializable {
     /*
      * for simplicity, combine the queries into the uri and use the resulting uri to seed the
      * resolved template.
+     * 支持@QueryMap,解析查询模板,将url和请求参数相结合,用&连接起来
      */
     if (!this.queries.isEmpty()) {
       /*
@@ -220,11 +223,12 @@ public final class RequestTemplate implements Serializable {
     /* add the uri to result */
     resolved.uri(uri.toString());
 
-    /* headers */
+    // 处理HeaderTemplate模板,填充请求头,支持@HeaderMap
     if (!this.headers.isEmpty()) {
       /*
        * same as the query string, we only want to keep resolved values, so clear the header map on
        * the resolved instance
+       * 解析@Headers注解属性中的{xxx},填充入参值(即@Param("xxx"))
        */
       resolved.headers(Collections.emptyMap());
       for (HeaderTemplate headerTemplate : this.headers.values()) {
@@ -237,11 +241,12 @@ public final class RequestTemplate implements Serializable {
       }
     }
 
+    // 处理BodyTemplate模板,填充RequestTemplate的Request.Body域
     if (this.bodyTemplate != null) {
       resolved.body(this.bodyTemplate.expand(variables));
     }
 
-    /* mark the new template resolved */
+    // 标记为已处理,所有模板都已经解析
     resolved.resolved = true;
     return resolved;
   }
@@ -270,6 +275,7 @@ public final class RequestTemplate implements Serializable {
    * @throws IllegalStateException if this template has not been resolved.
    */
   public Request request() {
+    // 转换之前,检查确保所有的template模版都已经被解析
     if (!this.resolved) {
       throw new IllegalStateException("template has not been resolved.");
     }
@@ -445,18 +451,19 @@ public final class RequestTemplate implements Serializable {
     /*
      * templates may provide query parameters. since we want to manage those explicity, we will need
      * to extract those out, leaving the uriTemplate with only the path to deal with.
+     * url可能包含请求参数,例如xxx?sort=full_name,这里会提取这些请求参数信息,统一放到uriTemplate中处理
      */
     Matcher queryMatcher = QUERY_STRING_PATTERN.matcher(uri);
     if (queryMatcher.find()) {
       String queryString = uri.substring(queryMatcher.start() + 1);
 
-      /* parse the query string */
+      /* 解析请求参数,并填充到RequestTemplate类的queries属性中 */
       this.extractQueryTemplates(queryString, append);
 
       /* reduce the uri to the path */
       uri = uri.substring(0, queryMatcher.start());
     }
-
+    // 去除锚点(html的东西,不用管)
     int fragmentIndex = uri.indexOf('#');
     if (fragmentIndex > -1) {
       fragment = uri.substring(fragmentIndex);
@@ -739,8 +746,7 @@ public final class RequestTemplate implements Serializable {
       // a client can only produce content of one single type, so always override Content-Type and
       // only add a single type
       this.headers.remove(name);
-      this.headers.put(name,
-          HeaderTemplate.create(name, Collections.singletonList(values.iterator().next())));
+      this.headers.put(name, HeaderTemplate.create(name, Collections.singletonList(values.iterator().next())));
       return this;
     }
     this.headers.compute(name, (headerName, headerTemplate) -> {
@@ -923,8 +929,7 @@ public final class RequestTemplate implements Serializable {
   public Collection<String> getRequestVariables() {
     final Collection<String> variables = new LinkedHashSet<>(this.uriTemplate.getVariables());
     this.queries.values().forEach(queryTemplate -> variables.addAll(queryTemplate.getVariables()));
-    this.headers.values()
-        .forEach(headerTemplate -> variables.addAll(headerTemplate.getVariables()));
+    this.headers.values().forEach(headerTemplate -> variables.addAll(headerTemplate.getVariables()));
     return variables;
   }
 

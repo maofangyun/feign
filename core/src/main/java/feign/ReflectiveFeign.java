@@ -54,18 +54,21 @@ public class ReflectiveFeign extends Feign {
       if (method.getDeclaringClass() == Object.class) {
         continue;
       } else if (Util.isDefault(method)) {
+        // 用来执行非远程调用的方法,即本地方法
         DefaultMethodHandler handler = new DefaultMethodHandler(method);
         defaultMethodHandlers.add(handler);
         methodToHandler.put(method, handler);
       } else {
+        // 将Map<String, MethodHandler>的映射关系转换成Map<Method, MethodHandler>的映射关系,即Method和SynchronousMethodHandler的映射关系
         methodToHandler.put(method, nameToHandler.get(Feign.configKey(target.type(), method)));
       }
     }
     InvocationHandler handler = factory.create(target, methodToHandler);
-    T proxy = (T) Proxy.newProxyInstance(target.type().getClassLoader(),
-        new Class<?>[] {target.type()}, handler);
+    // 创建了一个JDK的动态代理类
+    T proxy = (T) Proxy.newProxyInstance(target.type().getClassLoader(), new Class<?>[] {target.type()}, handler);
 
     for (DefaultMethodHandler defaultMethodHandler : defaultMethodHandlers) {
+      // 将此本地方法绑定代理对象,使得远程方法和本地方法的调用对于客户端透明
       defaultMethodHandler.bindTo(proxy);
     }
     return proxy;
@@ -81,12 +84,15 @@ public class ReflectiveFeign extends Feign {
       this.dispatch = checkNotNull(dispatch, "dispatch for %s", target);
     }
 
+    /**
+     * 对方法完成正调度的核心,是所有方法调用的入口
+     * */
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+      // 省略对equals、hashCode、toString等方法的处理代码
       if ("equals".equals(method.getName())) {
         try {
-          Object otherHandler =
-              args.length > 0 && args[0] != null ? Proxy.getInvocationHandler(args[0]) : null;
+          Object otherHandler = args.length > 0 && args[0] != null ? Proxy.getInvocationHandler(args[0]) : null;
           return equals(otherHandler);
         } catch (IllegalArgumentException e) {
           return false;
@@ -96,7 +102,7 @@ public class ReflectiveFeign extends Feign {
       } else if ("toString".equals(method.getName())) {
         return toString();
       }
-
+      // 通过dispath完成调度,因此最终调用的是MethodHandler#invoke
       return dispatch.get(method).invoke(args);
     }
 
@@ -148,25 +154,23 @@ public class ReflectiveFeign extends Feign {
     }
 
     public Map<String, MethodHandler> apply(Target target) {
+      // 解析Class对象中的方法,并封装成元数据MethodMetadata的集合
       List<MethodMetadata> metadata = contract.parseAndValidateMetadata(target.type());
       Map<String, MethodHandler> result = new LinkedHashMap<String, MethodHandler>();
       for (MethodMetadata md : metadata) {
         BuildTemplateByResolvingArgs buildTemplate;
-        if (!md.formParams().isEmpty() && md.template().bodyTemplate() == null) {
-          buildTemplate =
-              new BuildFormEncodedTemplateFromArgs(md, encoder, queryMapEncoder, target);
-        } else if (md.bodyIndex() != null || md.alwaysEncodeBody()) {
+        if (!md.formParams().isEmpty() && md.template().bodyTemplate() == null) {     // 表单类型的(有@Param注解,但是没有在url的{}中体现)
+          buildTemplate = new BuildFormEncodedTemplateFromArgs(md, encoder, queryMapEncoder, target);
+        } else if (md.bodyIndex() != null || md.alwaysEncodeBody()) {                 // body类型的
           buildTemplate = new BuildEncodedTemplateFromArgs(md, encoder, queryMapEncoder, target);
-        } else {
+        } else {                                                                      // 普通类型的
           buildTemplate = new BuildTemplateByResolvingArgs(md, queryMapEncoder, target);
         }
         if (md.isIgnored()) {
-          result.put(md.configKey(), args -> {
-            throw new IllegalStateException(md.configKey() + " is not a method handled by feign");
-          });
+          result.put(md.configKey(), args -> { throw new IllegalStateException(md.configKey() + " is not a method handled by feign");});
         } else {
-          result.put(md.configKey(),
-              factory.create(target, md, buildTemplate, options, decoder, errorDecoder));
+          // 为每一个方法创建一个SynchronousMethodHandler
+          result.put(md.configKey(), factory.create(target, md, buildTemplate, options, decoder, errorDecoder));
         }
       }
       return result;
@@ -179,10 +183,12 @@ public class ReflectiveFeign extends Feign {
 
     protected final MethodMetadata metadata;
     protected final Target<?> target;
+    // key:数字类型,表示参数的index
+    // Expander:feign.Param.Expander,也就是由注解决定使用哪种Expander,默认是ToStringExpander
     private final Map<Integer, Expander> indexToExpander = new LinkedHashMap<Integer, Expander>();
 
-    private BuildTemplateByResolvingArgs(MethodMetadata metadata, QueryMapEncoder queryMapEncoder,
-        Target target) {
+    // 唯一构造器:给前三个属性赋值,并且根据这三个属性,计算出indexToExpander的值并缓存
+    private BuildTemplateByResolvingArgs(MethodMetadata metadata, QueryMapEncoder queryMapEncoder, Target target) {
       this.metadata = metadata;
       this.target = target;
       this.queryMapEncoder = queryMapEncoder;
@@ -193,11 +199,9 @@ public class ReflectiveFeign extends Feign {
       if (metadata.indexToExpanderClass().isEmpty()) {
         return;
       }
-      for (Entry<Integer, Class<? extends Expander>> indexToExpanderClass : metadata
-          .indexToExpanderClass().entrySet()) {
+      for (Entry<Integer, Class<? extends Expander>> indexToExpanderClass : metadata.indexToExpanderClass().entrySet()) {
         try {
-          indexToExpander
-              .put(indexToExpanderClass.getKey(), indexToExpanderClass.getValue().newInstance());
+          indexToExpander.put(indexToExpanderClass.getKey(), indexToExpanderClass.getValue().newInstance());
         } catch (InstantiationException e) {
           throw new IllegalStateException(e);
         } catch (IllegalAccessException e) {
@@ -206,8 +210,12 @@ public class ReflectiveFeign extends Feign {
       }
     }
 
+    /**
+     * 解析元数据对象MethodMetadata,创建RequestTemplate并将对应参数填进RequestTemplate各个属性里
+     * */
     @Override
     public RequestTemplate create(Object[] argv) {
+      // 新建出来一份RequestTemplate
       RequestTemplate mutable = RequestTemplate.from(metadata.template());
       mutable.feignTarget(target);
       if (metadata.urlIndex() != null) {
@@ -215,6 +223,7 @@ public class ReflectiveFeign extends Feign {
         checkArgument(argv[urlIndex] != null, "URI parameter %s was null", urlIndex);
         mutable.target(String.valueOf(argv[urlIndex]));
       }
+      // 将入参的名称和入参的值结合起来
       Map<String, Object> varBuilder = new LinkedHashMap<String, Object>();
       for (Entry<Integer, Collection<String>> entry : metadata.indexToName().entrySet()) {
         int i = entry.getKey();
@@ -224,12 +233,14 @@ public class ReflectiveFeign extends Feign {
             value = expandElements(indexToExpander.get(i), value);
           }
           for (String name : entry.getValue()) {
+            // 入参的键值对映射关系
             varBuilder.put(name, value);
           }
         }
       }
-
+      // 使用入参填充url,形成最终能直接访问的url
       RequestTemplate template = resolve(argv, mutable, varBuilder);
+      // 支持@QueryMap
       if (metadata.queryMapIndex() != null) {
         // add query map parameters after initial resolve so that they take
         // precedence over any predefined values
@@ -237,10 +248,9 @@ public class ReflectiveFeign extends Feign {
         Map<String, Object> queryMap = toQueryMap(value);
         template = addQueryMapQueryParameters(queryMap, template);
       }
-
+      // 支持@HeaderMap
       if (metadata.headerMapIndex() != null) {
-        template =
-            addHeaderMapHeaders((Map<String, Object>) argv[metadata.headerMapIndex()], template);
+        template = addHeaderMapHeaders((Map<String, Object>) argv[metadata.headerMapIndex()], template);
       }
 
       return template;
@@ -327,9 +337,7 @@ public class ReflectiveFeign extends Feign {
       return mutable;
     }
 
-    protected RequestTemplate resolve(Object[] argv,
-                                      RequestTemplate mutable,
-                                      Map<String, Object> variables) {
+    protected RequestTemplate resolve(Object[] argv, RequestTemplate mutable, Map<String, Object> variables) {
       return mutable.resolve(variables);
     }
   }
@@ -338,16 +346,13 @@ public class ReflectiveFeign extends Feign {
 
     private final Encoder encoder;
 
-    private BuildFormEncodedTemplateFromArgs(MethodMetadata metadata, Encoder encoder,
-        QueryMapEncoder queryMapEncoder, Target target) {
+    private BuildFormEncodedTemplateFromArgs(MethodMetadata metadata, Encoder encoder, QueryMapEncoder queryMapEncoder, Target target) {
       super(metadata, queryMapEncoder, target);
       this.encoder = encoder;
     }
 
     @Override
-    protected RequestTemplate resolve(Object[] argv,
-                                      RequestTemplate mutable,
-                                      Map<String, Object> variables) {
+    protected RequestTemplate resolve(Object[] argv, RequestTemplate mutable, Map<String, Object> variables) {
       Map<String, Object> formVariables = new LinkedHashMap<String, Object>();
       for (Entry<String, Object> entry : variables.entrySet()) {
         if (metadata.formParams().contains(entry.getKey())) {
@@ -355,6 +360,7 @@ public class ReflectiveFeign extends Feign {
         }
       }
       try {
+        // 填充到body域中
         encoder.encode(formVariables, Encoder.MAP_STRING_WILDCARD, mutable);
       } catch (EncodeException e) {
         throw e;

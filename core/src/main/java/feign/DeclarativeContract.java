@@ -26,15 +26,24 @@ import java.util.stream.Collectors;
  * processed and how each annotation modifies {@link MethodMetadata}
  */
 public abstract class DeclarativeContract extends BaseContract {
-
+  /**
+   * 类注解的处理器集合
+   * */
   private final List<GuardedAnnotationProcessor> classAnnotationProcessors = new ArrayList<>();
+  /**
+   * 方法注解的处理器集合
+   * */
   private final List<GuardedAnnotationProcessor> methodAnnotationProcessors = new ArrayList<>();
+  /**
+   * 参数注解的处理器集合
+   * */
   private final Map<Class<Annotation>, DeclarativeContract.ParameterAnnotationProcessor<Annotation>> parameterAnnotationProcessors =
       new HashMap<>();
 
   @Override
   public final List<MethodMetadata> parseAndValidateMetadata(Class<?> targetType) {
     // any implementations must register processors
+    // 解析Class对象中的方法,并封装成元数据MethodMetadata的集合
     return super.parseAndValidateMetadata(targetType);
   }
 
@@ -47,8 +56,10 @@ public abstract class DeclarativeContract extends BaseContract {
    */
   @Override
   protected final void processAnnotationOnClass(MethodMetadata data, Class<?> targetType) {
+    // 获取该类上所有注解能匹配的处理器集合
     final List<GuardedAnnotationProcessor> processors = Arrays.stream(targetType.getAnnotations())
         .flatMap(annotation -> classAnnotationProcessors.stream()
+             // 根据注解类型,匹配处理器
             .filter(processor -> processor.test(annotation)))
         .collect(Collectors.toList());
 
@@ -56,6 +67,7 @@ public abstract class DeclarativeContract extends BaseContract {
       Arrays.stream(targetType.getAnnotations())
           .forEach(annotation -> processors.stream()
               .filter(processor -> processor.test(annotation))
+               // 真正处理注解的方法
               .forEach(processor -> processor.process(annotation, data)));
     } else {
       if (targetType.getAnnotations().length == 0) {
@@ -85,11 +97,13 @@ public abstract class DeclarativeContract extends BaseContract {
   protected final void processAnnotationOnMethod(MethodMetadata data,
                                                  Annotation annotation,
                                                  Method method) {
+    // 获取该方法上所有注解能匹配的处理器集合
     List<GuardedAnnotationProcessor> processors = methodAnnotationProcessors.stream()
         .filter(processor -> processor.test(annotation))
         .collect(Collectors.toList());
 
     if (!processors.isEmpty()) {
+      // 遍历方法注解的处理器,解析方法上的注解,并将信息填充到data中RequestTemplate属性中
       processors.forEach(processor -> processor.process(annotation, data));
     } else {
       data.addWarning(String.format(
@@ -114,11 +128,11 @@ public abstract class DeclarativeContract extends BaseContract {
   protected final boolean processAnnotationsOnParameter(MethodMetadata data,
                                                         Annotation[] annotations,
                                                         int paramIndex) {
-    List<Annotation> matchingAnnotations = Arrays.stream(annotations)
-        .filter(
-            annotation -> parameterAnnotationProcessors.containsKey(annotation.annotationType()))
-        .collect(Collectors.toList());
+    // 匹配参数注解处理器能处理的入参注解集合
+    List<Annotation> matchingAnnotations = Arrays.stream(annotations).filter(
+            annotation -> parameterAnnotationProcessors.containsKey(annotation.annotationType())).collect(Collectors.toList());
 
+    // 遍历参数注解处理器,解析参数上的注解信息,填充到data中的各种属性中
     if (!matchingAnnotations.isEmpty()) {
       matchingAnnotations.forEach(annotation -> parameterAnnotationProcessors
           .getOrDefault(annotation.annotationType(), ParameterAnnotationProcessor.DO_NOTHING)
@@ -157,6 +171,7 @@ public abstract class DeclarativeContract extends BaseContract {
   protected <E extends Annotation> void registerClassAnnotation(Class<E> annotationType,
                                                                 DeclarativeContract.AnnotationProcessor<E> processor) {
     registerClassAnnotation(
+        // Predicate类型,是一个判断的类型
         annotation -> annotation.annotationType().equals(annotationType),
         processor);
   }
@@ -169,6 +184,7 @@ public abstract class DeclarativeContract extends BaseContract {
    */
   protected <E extends Annotation> void registerClassAnnotation(Predicate<E> predicate,
                                                                 DeclarativeContract.AnnotationProcessor<E> processor) {
+    // 全部的处理器都包装成GuardedAnnotationProcessor,自带策略模式
     this.classAnnotationProcessors.add(new GuardedAnnotationProcessor(predicate, processor));
   }
 
@@ -181,13 +197,11 @@ public abstract class DeclarativeContract extends BaseContract {
   protected <E extends Annotation> void registerMethodAnnotation(Class<E> annotationType,
                                                                  DeclarativeContract.AnnotationProcessor<E> processor) {
     registerMethodAnnotation(
-        annotation -> annotation.annotationType().equals(annotationType),
-        processor);
+        annotation -> annotation.annotationType().equals(annotationType), processor);
   }
 
   /**
    * Called while method annotations are being processed
-   *
    * @param predicate to check if the annotation should be processed or not
    * @param processor function that defines the annotations modifies {@link MethodMetadata}
    */

@@ -35,6 +35,9 @@ final class DefaultMethodHandler implements MethodHandler {
   // handle is effectively final after bindTo has been called...
   private MethodHandle handle;
 
+  /**
+   * 从Method里拿到方法句柄,赋值给unboundHandle
+   * */
   public DefaultMethodHandler(Method defaultMethod) {
     Class<?> declaringClass = defaultMethod.getDeclaringClass();
 
@@ -116,9 +119,10 @@ final class DefaultMethodHandler implements MethodHandler {
   }
 
   /**
-   * Bind this handler to a proxy object. After bound, DefaultMethodHandler#invoke will act as if it
-   * was called on the proxy object. Must be called once and only once for a given instance of
-   * DefaultMethodHandler
+    * 将此处理程序绑定到代理对象.
+    * 绑定后,DefaultMethodHandler#invoke将像在代理对象上调用一样.
+    * 必须为给定的 DefaultMethodHandler 实例调用一次且仅一次.
+    * 注意:bindTo方法必须在invoke方法之前调用
    */
   public void bindTo(Object proxy) {
     if (handle != null) {
@@ -129,8 +133,8 @@ final class DefaultMethodHandler implements MethodHandler {
   }
 
   /**
-   * Invoke this method. DefaultMethodHandler#bindTo must be called before the first time invoke is
-   * called.
+    * 调用目标方法.
+    * 必须在调用invoke()之前调用bindTo()
    */
   @Override
   public Object invoke(Object[] argv) throws Throwable {
@@ -138,6 +142,8 @@ final class DefaultMethodHandler implements MethodHandler {
       throw new IllegalStateException(
           "Default method handler invoked before proxy has been bound.");
     }
+    // 采用的方法句柄MethodHandle的方式去“反射”执行目标方法,
+    // 很显然它只能执行到接口默认方法,所以一般没有远程调用
     return handle.invokeWithArguments(argv);
   }
 }

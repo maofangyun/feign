@@ -29,44 +29,27 @@ import static feign.Util.emptyToNull;
  */
 public interface Target<T> {
 
-  /* The type of the interface this target applies to. ex. {@code Route53}. */
+  // 此target作用的接口的类型
   Class<T> type();
 
-  /* configuration key associated with this target. For example, {@code route53}. */
+  // 此target配置的一个key,一般情况下没啥用
+  // 但会在和feign-hystrix整合时,会作为它的groupKey来使用,这也是它的唯一被使用的地方
   String name();
 
-  /* base HTTP URL of the target. For example, {@code https://api/v2}. */
+  // 发送请求的BaseURL,如https://example/api/v1
   String url();
 
   /**
-   * Targets a template to this target, adding the {@link #url() base url} and any target-specific
-   * headers or query parameters. <br>
-   * <br>
-   * For example: <br>
-   * 
-   * <pre>
-   * public Request apply(RequestTemplate input) {
-   *   input.insert(0, url());
-   *   input.replaceHeader(&quot;X-Auth&quot;, currentToken);
-   *   return input.asRequest();
-   * }
-   * </pre>
-   * 
-   * <br>
-   * <br>
-   * <br>
-   * <b>relationship to JAXRS 2.0</b><br>
-   * <br>
-   * This call is similar to {@code
-   * javax.ws.rs.client.WebTarget.request()}, except that we expect transient, but necessary
-   * decoration to be applied on invocation.
+   * 最重要的方法:用于把请求模版组装,加上BaseUrl,转换为一个真正的Request
+   * 此input模版里包含有很多的:QueryTemplate,HeaderTemplate,UriTemplate等
    */
-  public Request apply(RequestTemplate input);
+  Request apply(RequestTemplate input);
 
   public static class HardCodedTarget<T> implements Target<T> {
 
     private final Class<T> type;
     private final String name;
+    // 相较于EmptyTarget,它必须有url
     private final String url;
 
     public HardCodedTarget(Class<T> type, String url) {
@@ -94,9 +77,10 @@ public interface Target<T> {
       return url;
     }
 
-    /* no authentication or other special activity. just insert the url. */
     @Override
     public Request apply(RequestTemplate input) {
+      // 若请求模版的URL不含有http,也就是说是个相对路径,这里就把Target.url加进去;
+      // 若请求模版已经是绝对路径了,那就不管
       if (input.url().indexOf("http") != 0) {
         input.target(url());
       }
@@ -138,6 +122,9 @@ public interface Target<T> {
     private final Class<T> type;
     private final String name;
 
+    /**
+     * url必须为空
+     * */
     EmptyTarget(Class<T> type, String name) {
       this.type = checkNotNull(type, "type");
       this.name = checkNotNull(emptyToNull(name), "name");
@@ -168,6 +155,8 @@ public interface Target<T> {
 
     @Override
     public Request apply(RequestTemplate input) {
+      // 如果请求模版的URL里已经包含了http,即绝对路径,EmptyTarget才能支持,
+      // 否则直接抛出异常
       if (input.url().indexOf("http") != 0) {
         throw new UnsupportedOperationException(
             "Request with non-absolute URL not supported with empty target");

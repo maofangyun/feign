@@ -34,6 +34,10 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  *
  * @see RequestTemplate#expand(String, Map)
  */
+/**
+ * 只能标注在方法上,最终是以http body体的形式发送的,body体的内容并不要求必须是json
+ * 适用于POST或者PUT请求
+ * */
 @Target(METHOD)
 @Retention(RUNTIME)
 public @interface Body {

@@ -22,6 +22,10 @@ import java.util.Map;
  */
 public interface InvocationHandlerFactory {
 
+  /**
+   * Dispatcher:每个方法对应的MethodHandler -> SynchronousMethodHandler实例
+   * 返回的是一个FeignInvocationHandler实例,实现了InvocationHandler接口
+   */
   InvocationHandler create(Target target, Map<Method, MethodHandler> dispatch);
 
   /**
@@ -33,10 +37,14 @@ public interface InvocationHandlerFactory {
     Object invoke(Object[] argv) throws Throwable;
   }
 
+  /**
+   * InvocationHandlerFactory接口只有这一个默认的实现类
+   * */
   static final class Default implements InvocationHandlerFactory {
 
     @Override
     public InvocationHandler create(Target target, Map<Method, MethodHandler> dispatch) {
+      // 调用FeignInvocationHandler构造器完成实例的创建
       return new ReflectiveFeign.FeignInvocationHandler(target, dispatch);
     }
   }

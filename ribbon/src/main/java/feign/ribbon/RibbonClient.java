@@ -75,10 +75,8 @@ public class RibbonClient implements Client {
       URI asUri = URI.create(request.url());
       String clientName = asUri.getHost();
       URI uriWithoutHost = cleanUrl(request.url(), clientName);
-      LBClient.RibbonRequest ribbonRequest =
-          new LBClient.RibbonRequest(delegate, request, uriWithoutHost);
-      return lbClient(clientName).executeWithLoadBalancer(ribbonRequest,
-          new FeignOptionsClientConfig(options)).toResponse();
+      LBClient.RibbonRequest ribbonRequest = new LBClient.RibbonRequest(delegate, request, uriWithoutHost);
+      return lbClient(clientName).executeWithLoadBalancer(ribbonRequest, new FeignOptionsClientConfig(options)).toResponse();
     } catch (ClientException e) {
       propagateFirstIOException(e);
       throw new RuntimeException(e);

@@ -54,6 +54,10 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * contract as if they were set using {@link RequestTemplate#query(String, String...)}.
  */
 @SuppressWarnings("deprecation")
+/**
+ * 只能标注在方法参数上。用于传递多个查询值，拼接在URL后面;
+ * 只能标注在Map类型的参数前面,否则报错
+ * */
 @Retention(RUNTIME)
 @java.lang.annotation.Target(PARAMETER)
 public @interface QueryMap {

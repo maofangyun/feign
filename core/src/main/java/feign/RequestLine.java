@@ -27,9 +27,13 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 @Retention(RUNTIME)
 public @interface RequestLine {
 
+  // 书写请求方法+URI,例如: GET /feign/demo1?name={name}
   String value();
 
+  // 是否转义"/"符号,默认是转义的
   boolean decodeSlash() default true;
 
+  // 默认支持URL传多值,是通过key来传输的.形如:key=value1&key=value2&key=value3
+  // CollectionFormat不同的取值对应不同的分隔符,一般不建议改
   CollectionFormat collectionFormat() default CollectionFormat.EXPLODED;
 }

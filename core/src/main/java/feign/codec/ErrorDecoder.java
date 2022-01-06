@@ -89,7 +89,12 @@ public interface ErrorDecoder {
 
     @Override
     public Exception decode(String methodKey, Response response) {
+      // 根据状态码提取出异常类型,并且同意包装为FeignException
+      // 4xx:FeignClientException
+      // 5xx:FeignServerException
+      // 其它:FeignException
       FeignException exception = errorStatus(methodKey, response);
+      // 根据header中的Retry-After,是否需要把异常类型包装为RetryableException
       Date retryAfter = retryAfterDecoder.apply(firstOrNull(response.headers(), RETRY_AFTER));
       if (retryAfter != null) {
         return new RetryableException(

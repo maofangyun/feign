@@ -32,21 +32,31 @@ final class SynchronousMethodHandler implements MethodHandler {
   private static final long MAX_RESPONSE_BUFFER_SIZE = 8192L;
 
   private final MethodMetadata metadata;
+  // 最终真正构建Http请求Request的实例,一般为HardCodedTarget
   private final Target<?> target;
+  // 负责最终请求的发送 -> 默认传进来的是基于JDK源生的,效率很低,不建议直接使用
   private final Client client;
+  // 负责重试 -->默认传进来的是Default,是有重试机制的,生产上使用请务必注意
   private final Retryer retryer;
+  // 请求拦截器，它会在target.apply(template);也就是模版 -> 请求的转换之前完成拦截
+  // 说明:并不是发送请求之前那一刻,请务必注意
+  // 它的作用只能是对请求模版做定制,而不能再对Request做定制了
+  // 内置仅有一个实现:BasicAuthRequestInterceptor(用于鉴权)
   private final List<RequestInterceptor> requestInterceptors;
   private final Logger logger;
   private final Logger.Level logLevel;
+  // 构建请求模版的工厂,对于请求模版,有多种构建方式,内部会用到可能多个编码器
   private final RequestTemplate.Factory buildTemplateFromArgs;
   private final Options options;
   private final ExceptionPropagationPolicy propagationPolicy;
 
-  // only one of decoder and asyncResponseHandler will be non-null
+  // 解码器:用于对Response进行解码
   private final Decoder decoder;
   private final AsyncResponseHandler asyncResponseHandler;
 
-
+  /**
+   * 唯一的构造器，并且还是私有的
+   * */
   private SynchronousMethodHandler(Target<?> target, Client client, Retryer retryer,
       List<RequestInterceptor> requestInterceptors, Logger logger,
       Logger.Level logLevel, MethodMetadata metadata,
@@ -58,8 +68,7 @@ final class SynchronousMethodHandler implements MethodHandler {
     this.target = checkNotNull(target, "target");
     this.client = checkNotNull(client, "client for %s", target);
     this.retryer = checkNotNull(retryer, "retryer for %s", target);
-    this.requestInterceptors =
-        checkNotNull(requestInterceptors, "requestInterceptors for %s", target);
+    this.requestInterceptors = checkNotNull(requestInterceptors, "requestInterceptors for %s", target);
     this.logger = checkNotNull(logger, "logger for %s", target);
     this.logLevel = checkNotNull(logLevel, "logLevel for %s", target);
     this.metadata = checkNotNull(metadata, "metadata for %s", target);
@@ -81,14 +90,19 @@ final class SynchronousMethodHandler implements MethodHandler {
 
   @Override
   public Object invoke(Object[] argv) throws Throwable {
+    // 根据方法入参,结合工厂构建出一个请求模版
+    // RequestTemplate是聚合有多种模版、参数、值, 转换成标准请求对象feign.Request
     RequestTemplate template = buildTemplateFromArgs.create(argv);
+    // 如果你方法入参里含有Options类型这里会被找出来; 说明：若有多个只会有第一个生效(不会报错)
     Options options = findOptions(argv);
+    // 重试机制:注意这里是克隆一个来使用,原因是每个请求的重试都要维护一个重试的计数属性attempt,所以必须克隆
     Retryer retryer = this.retryer.clone();
     while (true) {
       try {
         return executeAndDecode(template, options);
       } catch (RetryableException e) {
         try {
+          // 执行重试的操作(即重试计数和重试等待),当超过最大重试次数或者设置不重试,会直接将原来的异常(即RetryableException)抛出来
           retryer.continueOrPropagate(e);
         } catch (RetryableException th) {
           Throwable cause = th.getCause();
@@ -126,6 +140,7 @@ final class SynchronousMethodHandler implements MethodHandler {
       if (logLevel != Logger.Level.NONE) {
         logger.logIOException(metadata.configKey(), logLevel, e, elapsedTime(start));
       }
+      // 包装成RetryableException异常抛出
       throw errorExecuting(request, e);
     }
     long elapsedTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
@@ -133,11 +148,9 @@ final class SynchronousMethodHandler implements MethodHandler {
 
     if (decoder != null)
       return decoder.decode(response, metadata.returnType());
-
+    // 是个假的异步Response处理器,可能是为了后续升级考虑
     CompletableFuture<Object> resultFuture = new CompletableFuture<>();
-    asyncResponseHandler.handleResponse(resultFuture, metadata.configKey(), response,
-        metadata.returnType(),
-        elapsedTime);
+    asyncResponseHandler.handleResponse(resultFuture, metadata.configKey(), response, metadata.returnType(), elapsedTime);
 
     try {
       if (!resultFuture.isDone())
@@ -157,6 +170,7 @@ final class SynchronousMethodHandler implements MethodHandler {
   }
 
   Request targetRequest(RequestTemplate template) {
+    // 执行请求拦截器,在Request对象创建之前进行拦截
     for (RequestInterceptor interceptor : requestInterceptors) {
       interceptor.apply(template);
     }
@@ -170,6 +184,7 @@ final class SynchronousMethodHandler implements MethodHandler {
     return Stream.of(argv)
         .filter(Options.class::isInstance)
         .map(Options.class::cast)
+        // 若存在多个Option,只返回第一个
         .findFirst()
         .orElse(this.options);
   }

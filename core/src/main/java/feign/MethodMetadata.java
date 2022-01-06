@@ -213,14 +213,20 @@ public final class MethodMetadata implements Serializable {
    *         {@link MethodMetadata} holder
    */
   public boolean isAlreadyProcessed(Integer index) {
+    // 若参数不是URI类型,也没有被@Param,@QueryMap,@HeaderMap,@Body标注,则返回false,表明该参数没有被feign处理
     return index.equals(urlIndex)
         || index.equals(bodyIndex)
         || index.equals(headerMapIndex)
         || index.equals(queryMapIndex)
+            // indexToName用来保存@Param注解中的入参名称
         || indexToName.containsKey(index)
+            // indexToExpanderClass用来保存@Param配置的其他Expander类型
         || indexToExpanderClass.containsKey(index)
+            // indexToEncoded基本上是空集
         || indexToEncoded.containsKey(index)
+            // indexToExpander基本上是null
         || (indexToExpander != null && indexToExpander.containsKey(index))
+            // parameterToIgnore基本上是空集
         || parameterToIgnore.get(index);
   }
 

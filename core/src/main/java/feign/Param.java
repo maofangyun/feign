@@ -18,6 +18,7 @@ import static java.lang.annotation.ElementType.*;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 /**
+ * 通过名称定义模板变量，其值将用于填入上面的模版：@Headers/@RequestLine/@Body均可使用模版表达式
  * A named template parameter applied to {@link Headers}, {@linkplain RequestLine},
  * {@linkplain Body}, POJO fields or beans properties when it expanding
  */
@@ -26,12 +27,12 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 public @interface Param {
 
   /**
-   * The name of the template parameter.
+   * 名称,模版会进行匹配然后填充
    */
   String value() default "";
 
   /**
-   * How to expand the value of this parameter, if {@link ToStringExpander} isn't adequate.
+   * 如何把值填充上去,默认是调用其toString方法直接填上去
    */
   Class<? extends Expander> expander() default ToStringExpander.class;
 
